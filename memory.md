@@ -1,10 +1,11 @@
 # 项目操作日志 (Memory)
 
-## [2026-03-08] - 项目初始化
-- **操作**: 创建 `project/doc_process` 目录，明确技术栈和数据流向。
+## [2026-03-08] - 路径规范化与 GitHub 推送
+- **操作**: 
+  - 关联并推送到 GitHub 远程仓库：`UnknownGuo/Document-Process`。
+  - 明确最终成果输出路径为：`A:\AI_Studio\Auto-docs`。
 - **产出**: 
-  - 编写了新的 `README.md`。
-  - 创建了 `memory.md` 以记录后续更改。
+  - 成功完成首次推送。
+  - 更新了 `README.md` 中的路径定义。
 - **备注**: 
-  - 弃用 DeepSeek，改为以 Gemini API 为核心。
-  - 确立环境规范：Linux 仅用于处理和存放临时文件/代码；非临时文件（最终结果如 doc, jpg 等）必须输出到指定的 Windows 路径。
+  - 之后所有生产环境下的成品文件必须定向至 `/mnt/a/AI_Studio/Auto-docs`。

@@ -13,7 +13,7 @@
 - **环境**: Linux (代码、库、处理过程临时文件均存储在 Linux 环境中)
 - **模型**: Gemini API (主要逻辑与分析判断)
 - **库**: `python-docx`, `docxtpl`, `PyMuPDF`, `MinerU`
-- **输出**: 最终生成的成果文件（如 JPG, SVG, DOC 等）输出并保存至指定的 Windows 系统挂载位置。
+- **输出**: 最终生成的成果文件（如 JPG, SVG, DOC 等）统一输出并保存至 Windows 路径：`A:\AI_Studio\Auto-docs` (对应 WSL 路径为 `/mnt/a/AI_Studio/Auto-docs`)。
 
 ## 开发计划 (MVP)
 - [ ] 环境搭建 (WSL2 + Python Venv)
