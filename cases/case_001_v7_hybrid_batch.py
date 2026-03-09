@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.llm_engine import generate_with_review
+from qa_pipeline.continuous_learning import get_learning_context
+from qa_pipeline.proofreader import run_proofreader
 
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
 
@@ -69,67 +71,58 @@ def safe_replace_block_text(block_element, new_text):
             block_element.add_run(new_text)
 
 def run_hybrid_batch_case():
-    print("========== 开始执行 V7 混合架构(Writer+Reviewer) 批量生成 ==========")
+    print("========== 开始执行 V8 全能架构(Writer+Reviewer+Proofreader+记忆) ==========")
     template_path = "/mnt/a/AI_Studio/Auto-docs/老妈需求/template_with_tags.docx"
     output_dir = "/mnt/a/AI_Studio/Auto-docs/老妈需求/output"
     os.makedirs(output_dir, exist_ok=True)
     
-    lessons = [
-        "骑鹅历险记",
-        "汤姆索亚历险记",
-        "口语交际：通读一本书",
-        "习作：写作梗概",
-        "语文园地",
-        "快乐读书吧"
-    ]
+    lessons = ["鲁滨逊漂流记"] # 测试跑一篇
     
     author = "王红晓"
+    
+    # 加载历史经验教训
+    history_context = get_learning_context()
     
     for lesson_name in lessons:
         print(f"\n>>>> 正在处理课文：《{lesson_name}》 <<<<")
         doc, blocks = parse_document_blocks(template_path)
         if not blocks:
-            print(f"模板解析失败。跳过《{lesson_name}》。")
             continue
 
         blocks_json_str = json.dumps(blocks, ensure_ascii=False, indent=2)
         
-        # 1. 定义写作者的 Prompt
         base_prompt = f"""
 你是一位深耕部编版小学语文教材 20 年的特级教师。
 当前任务：为六年级上册课文《{lesson_name}》编写教学设计。
 
-用户提供了一个含有旧内容的模板，且在需要你重新生成的地方打上了标记（如 1111 或 【】）。
+用户提供了一个含有旧内容的模板，且在需要你重新生成的地方打上了标记。
 请根据下面 JSON 列出的待处理区块，为每一个 Block 生成【全新的文本】，完全替换掉原有的示例文本。
 
-请返回一个严格的 JSON。Key 是 Block ID，Value 是生成的全新内容。
+{history_context}
 
+请返回一个严格的 JSON。Key 是 Block ID，Value 是生成的全新内容。
 待处理区块数据：
 {blocks_json_str}
 """
         
-        # 2. 定义严格的质检标准 (Constraints)
         constraints = f"""
 1. 【极简课题】：课题处只输出书名（如《{lesson_name}》），严禁带有类似“快乐读书吧：”等前缀。
-2. 【数量精准控制】：“学习目标”和“作业”栏目，必须严格只写 2-3 条。不能只有 1 条，也不能多于 3 条。
-3. 【原子化评价指标】：对于“素养指标”或任务左侧的概括词（如：说游踪、理顺序），必须拆分成独立的行，并在每一行的末尾单独跟上一颗星星 ⭐。
-   【必须符合这种格式】：
-   知背景 ⭐
-   理情节 ⭐
-   谈初感 ⭐
-   （绝对不允许挤在同一行，绝对不允许在结尾统一写“达成度：⭐⭐⭐”）
+2. 【数量精准控制】：“学习目标”和“作业”栏目，必须严格只写 2-3 条。
+3. 【原子化评价指标】：对于“素养指标”或任务左侧的概括词，必须拆分成独立的行，并在每一行的末尾单独跟上一颗星星 ⭐。绝对不允许挤在同一行。
 4. 【主备人】：主备人固定为“{author}”，审核人为空。
-5. 【纯文本格式】：坚决不使用 Word 自动编号（如1. 2.），直接输出纯文本段落。坚决不要用虚线画表格。
+5. 【纯文本格式】：坚决不使用 Word 自动编号（如1. 2.），直接输出纯文本段落。
 """
 
-        # 3. 调用多智能体管线：生成 -> 审查 -> (可能)返工 -> 最终输出
+        # 1. 结构生成与逻辑审查 (Writer + Reviewer)
         result_data = generate_with_review(base_prompt, constraints, model_name='gemini-2.5-pro')
         
         if not result_data:
-            print(f"❌ AI 生成失败，跳过《{lesson_name}》。")
             continue
             
-        print("[格式注入器] 审查通过！开始进行外科手术级精准替换...")
+        # 2. 专业内容校对 (Proofreader)
+        result_data = run_proofreader(result_data, model_name='gemini-2.5-pro')
+            
+        print("[格式注入器] 所有质检通过！开始进行外科手术级精准替换...")
         processed_cells = set()
         for t_idx, table in enumerate(doc.tables):
             for r_idx, row in enumerate(table.rows):
@@ -138,18 +131,16 @@ def run_hybrid_batch_case():
                     if cell_id_str in result_data:
                         cell_elem_id = cell._element
                         if cell_elem_id not in processed_cells:
-                            new_text = result_data[cell_id_str]
-                            safe_replace_block_text(cell, new_text)
+                            safe_replace_block_text(cell, result_data[cell_id_str])
                             processed_cells.add(cell_elem_id)
                             
         for i, p in enumerate(doc.paragraphs):
             p_id_str = f"p_{i}"
             if p_id_str in result_data:
-                new_text = result_data[p_id_str]
-                safe_replace_block_text(p, new_text)
+                safe_replace_block_text(p, result_data[p_id_str])
                 
         today = datetime.datetime.now().strftime("%Y%m%d")
-        out_path = os.path.join(output_dir, f"{lesson_name}_v7_AutoReview_{today}.docx")
+        out_path = os.path.join(output_dir, f"{lesson_name}_v8_QA_{today}.docx")
         
         doc.save(out_path)
         print(f"✅ 《{lesson_name}》生成完毕，已保存至：{out_path}")
