@@ -33,7 +33,7 @@ def generate_structured_data(prompt: str, model_name: str = 'gemini-2.5-pro') ->
         print(f"[核心引擎] AI 生成或解析 JSON 失败: {e}")
         return None
 
-def generate_with_review(base_prompt: str, constraints: str, model_name: str = 'gemini-2.5-pro', max_retries: int = 3) -> dict:
+def generate_with_review(base_prompt: str, constraints: str, model_name: str = 'gemini-2.5-pro', max_retries: int = 5) -> dict:
     """
     混合架构核心：Writer + Reviewer 多智能体自我审查循环。
     """
